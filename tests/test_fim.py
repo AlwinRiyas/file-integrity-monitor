@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from src.fim import (
     calculate_sha256,
     check_integrity,
     create_baseline,
+    load_baseline,
     setup_logging,
 )
 
@@ -15,7 +17,7 @@ class TestFileIntegrityMonitor(unittest.TestCase):
     """Test the File Integrity Monitor."""
 
     def setUp(self):
-        """Create an isolated temporary test environment."""
+        """Create an isolated temporary environment."""
 
         self.temp_dir = tempfile.TemporaryDirectory()
 
@@ -51,7 +53,7 @@ class TestFileIntegrityMonitor(unittest.TestCase):
         )
 
     def tearDown(self):
-        """Remove the temporary test environment."""
+        """Remove the temporary environment."""
 
         self.temp_dir.cleanup()
 
@@ -84,11 +86,9 @@ class TestFileIntegrityMonitor(unittest.TestCase):
             self.baseline_file.exists()
         )
 
-        with self.baseline_file.open(
-            "r",
-            encoding="utf-8"
-        ) as file:
-            baseline = json.load(file)
+        baseline = load_baseline(
+            str(self.baseline_file)
+        )
 
         self.assertIn(
             "files",
@@ -264,7 +264,7 @@ class TestFileIntegrityMonitor(unittest.TestCase):
         )
 
         self.test_file.write_text(
-            "malicious-looking change",
+            "changed content",
             encoding="utf-8"
         )
 
@@ -293,6 +293,119 @@ class TestFileIntegrityMonitor(unittest.TestCase):
             "test.txt",
             log_content
         )
+
+    def test_invalid_baseline_json(self):
+        """Verify malformed baseline handling."""
+
+        self.baseline_file.write_text(
+            "{invalid json",
+            encoding="utf-8"
+        )
+
+        with self.assertRaises(
+            ValueError
+        ):
+            load_baseline(
+                str(self.baseline_file)
+            )
+
+    def test_invalid_baseline_hash(self):
+        """Verify invalid hash handling."""
+
+        invalid_baseline = {
+            "version": 1,
+            "files": {
+                "test.txt": {
+                    "sha256": "invalid",
+                    "size": 10
+                }
+            }
+        }
+
+        with self.baseline_file.open(
+            "w",
+            encoding="utf-8"
+        ) as file:
+
+            json.dump(
+                invalid_baseline,
+                file
+            )
+
+        with self.assertRaises(
+            ValueError
+        ):
+            load_baseline(
+                str(self.baseline_file)
+            )
+
+    def test_invalid_baseline_version(self):
+        """Verify unsupported baseline versions."""
+
+        invalid_baseline = {
+            "version": 99,
+            "files": {}
+        }
+
+        with self.baseline_file.open(
+            "w",
+            encoding="utf-8"
+        ) as file:
+
+            json.dump(
+                invalid_baseline,
+                file
+            )
+
+        with self.assertRaises(
+            ValueError
+        ):
+            load_baseline(
+                str(self.baseline_file)
+            )
+
+    def test_max_file_size(self):
+        """Verify maximum file size enforcement."""
+
+        with self.assertRaises(
+            ValueError
+        ):
+            calculate_sha256(
+                str(self.test_file),
+                max_file_size=1
+            )
+
+    def test_symlink_is_rejected(self):
+        """Verify symbolic links are not hashed."""
+
+        if not hasattr(
+            os,
+            "symlink"
+        ):
+            self.skipTest(
+                "Symbolic links are not supported."
+            )
+
+        symlink = (
+            self.monitored_dir
+            / "link.txt"
+        )
+
+        try:
+            symlink.symlink_to(
+                self.test_file
+            )
+        except OSError:
+            self.skipTest(
+                "Unable to create symbolic link."
+            )
+
+        with self.assertRaises(
+            ValueError
+        ):
+            calculate_sha256(
+                str(symlink)
+            )
 
 
 if __name__ == "__main__":

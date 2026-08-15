@@ -2,11 +2,15 @@ import argparse
 import hashlib
 import json
 import logging
+import os
+import stat
 from pathlib import Path
 
 
 LOG_DIRECTORY = Path("logs")
 LOG_FILE = LOG_DIRECTORY / "fim.log"
+
+DEFAULT_MAX_FILE_SIZE = 100 * 1024 * 1024
 
 
 def setup_logging(
@@ -21,13 +25,19 @@ def setup_logging(
         exist_ok=True
     )
 
+    try:
+        log_file.touch(
+            mode=0o600,
+            exist_ok=True
+        )
+    except OSError:
+        pass
+
     logger = logging.getLogger(
         f"fim.{log_file}"
     )
 
-    logger.setLevel(
-        logging.INFO
-    )
+    logger.setLevel(logging.INFO)
 
     logger.handlers.clear()
 
@@ -53,17 +63,43 @@ def setup_logging(
     return logger
 
 
+def validate_file(
+    file_path: Path,
+    max_file_size: int = DEFAULT_MAX_FILE_SIZE
+) -> None:
+    """Validate a file before processing it."""
+
+    if file_path.is_symlink():
+        raise ValueError(
+            f"Symbolic links are not allowed: {file_path}"
+        )
+
+    if not file_path.is_file():
+        raise FileNotFoundError(
+            f"File not found: {file_path}"
+        )
+
+    file_size = file_path.stat().st_size
+
+    if file_size > max_file_size:
+        raise ValueError(
+            f"File exceeds maximum allowed size: "
+            f"{file_path}"
+        )
+
+
 def calculate_sha256(
-    file_path: str
+    file_path: str,
+    max_file_size: int = DEFAULT_MAX_FILE_SIZE
 ) -> str:
     """Calculate the SHA-256 hash of a file."""
 
     path = Path(file_path)
 
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"File not found: {file_path}"
-        )
+    validate_file(
+        path,
+        max_file_size
+    )
 
     sha256 = hashlib.sha256()
 
@@ -76,9 +112,10 @@ def calculate_sha256(
 
 def create_baseline(
     directory: str,
-    baseline_path: str
+    baseline_path: str,
+    max_file_size: int = DEFAULT_MAX_FILE_SIZE
 ) -> None:
-    """Create a SHA-256 baseline for all files."""
+    """Create a SHA-256 baseline for all valid files."""
 
     directory_path = Path(directory)
     baseline_file = Path(baseline_path)
@@ -96,12 +133,16 @@ def create_baseline(
     for file_path in sorted(
         directory_path.rglob("*")
     ):
+        if file_path.is_symlink():
+            continue
+
         if not file_path.is_file():
             continue
 
         try:
             file_hash = calculate_sha256(
-                str(file_path)
+                str(file_path),
+                max_file_size
             )
 
             relative_path = (
@@ -119,8 +160,10 @@ def create_baseline(
 
         except (
             OSError,
-            PermissionError
+            PermissionError,
+            ValueError
         ) as error:
+
             print(
                 f"Warning: Could not process "
                 f"{file_path}: {error}"
@@ -135,11 +178,17 @@ def create_baseline(
         "w",
         encoding="utf-8"
     ) as file:
+
         json.dump(
             baseline,
             file,
             indent=4
         )
+
+    try:
+        baseline_file.chmod(0o600)
+    except OSError:
+        pass
 
     print(
         f"Baseline created: {baseline_file}"
@@ -151,23 +200,121 @@ def create_baseline(
     )
 
 
+def validate_baseline(
+    baseline: dict
+) -> None:
+    """Validate the structure of a baseline."""
+
+    if not isinstance(
+        baseline,
+        dict
+    ):
+        raise ValueError(
+            "Baseline must be a JSON object."
+        )
+
+    if baseline.get("version") != 1:
+        raise ValueError(
+            "Unsupported baseline version."
+        )
+
+    files = baseline.get("files")
+
+    if not isinstance(
+        files,
+        dict
+    ):
+        raise ValueError(
+            "Baseline 'files' must be an object."
+        )
+
+    for file_path, metadata in files.items():
+
+        if not isinstance(
+            file_path,
+            str
+        ):
+            raise ValueError(
+                "Baseline file paths must be strings."
+            )
+
+        if not isinstance(
+            metadata,
+            dict
+        ):
+            raise ValueError(
+                f"Invalid metadata for: {file_path}"
+            )
+
+        sha256 = metadata.get(
+            "sha256"
+        )
+
+        size = metadata.get(
+            "size"
+        )
+
+        if (
+            not isinstance(
+                sha256,
+                str
+            )
+            or len(sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in sha256
+            )
+        ):
+            raise ValueError(
+                f"Invalid SHA-256 hash for: "
+                f"{file_path}"
+            )
+
+        if not isinstance(
+            size,
+            int
+        ) or size < 0:
+            raise ValueError(
+                f"Invalid file size for: "
+                f"{file_path}"
+            )
+
+
 def load_baseline(
     baseline_path: str
 ) -> dict:
-    """Load a previously created baseline."""
+    """Load and validate a baseline."""
 
     path = Path(baseline_path)
+
+    if path.is_symlink():
+        raise ValueError(
+            "Baseline must not be a symbolic link."
+        )
 
     if not path.is_file():
         raise FileNotFoundError(
             f"Baseline not found: {baseline_path}"
         )
 
-    with path.open(
-        "r",
-        encoding="utf-8"
-    ) as file:
-        return json.load(file)
+    try:
+        with path.open(
+            "r",
+            encoding="utf-8"
+        ) as file:
+
+            baseline = json.load(file)
+
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f"Invalid baseline JSON: {error}"
+        ) from error
+
+    validate_baseline(
+        baseline
+    )
+
+    return baseline
 
 
 def log_security_event(
@@ -189,7 +336,8 @@ def log_security_event(
 def check_integrity(
     directory: str,
     baseline_path: str,
-    logger: logging.Logger
+    logger: logging.Logger,
+    max_file_size: int = DEFAULT_MAX_FILE_SIZE
 ) -> dict:
     """Compare current files against the baseline."""
 
@@ -214,6 +362,14 @@ def check_integrity(
     for file_path in sorted(
         directory_path.rglob("*")
     ):
+
+        if file_path.is_symlink():
+            logger.warning(
+                "MEDIUM | SYMLINK_SKIPPED | %s",
+                file_path
+            )
+            continue
+
         if not file_path.is_file():
             continue
 
@@ -224,20 +380,26 @@ def check_integrity(
                 )
             )
 
-            current_files[relative_path] = {
+            current_files[
+                relative_path
+            ] = {
                 "sha256": calculate_sha256(
-                    str(file_path)
+                    str(file_path),
+                    max_file_size
                 ),
                 "size": file_path.stat().st_size
             }
 
         except (
             OSError,
-            PermissionError
+            PermissionError,
+            ValueError
         ) as error:
-            print(
-                f"Warning: Could not process "
-                f"{file_path}: {error}"
+
+            logger.warning(
+                "MEDIUM | FILE_SKIPPED | %s | %s",
+                file_path,
+                error
             )
 
     new_files = []
@@ -247,20 +409,30 @@ def check_integrity(
     for file_path in current_files:
 
         if file_path not in baseline_files:
-            new_files.append(file_path)
+
+            new_files.append(
+                file_path
+            )
 
         elif (
             current_files[file_path]["sha256"]
             != baseline_files[file_path]["sha256"]
         ):
-            modified_files.append(file_path)
+
+            modified_files.append(
+                file_path
+            )
 
     for file_path in baseline_files:
 
         if file_path not in current_files:
-            deleted_files.append(file_path)
+
+            deleted_files.append(
+                file_path
+            )
 
     for file_path in new_files:
+
         log_security_event(
             logger,
             "NEW",
@@ -269,6 +441,7 @@ def check_integrity(
         )
 
     for file_path in modified_files:
+
         log_security_event(
             logger,
             "MODIFIED",
@@ -277,6 +450,7 @@ def check_integrity(
         )
 
     for file_path in deleted_files:
+
         log_security_event(
             logger,
             "DELETED",
@@ -305,6 +479,7 @@ def print_report(
     )
 
     for file_path in results["new"]:
+
         print(
             f"  [NEW]      {file_path}"
         )
@@ -315,6 +490,7 @@ def print_report(
     )
 
     for file_path in results["modified"]:
+
         print(
             f"  [MODIFIED] {file_path}"
         )
@@ -325,6 +501,7 @@ def print_report(
     )
 
     for file_path in results["deleted"]:
+
         print(
             f"  [DELETED]  {file_path}"
         )
@@ -359,6 +536,13 @@ def parse_arguments():
         help="Path to save the baseline"
     )
 
+    baseline_parser.add_argument(
+        "--max-size",
+        type=int,
+        default=DEFAULT_MAX_FILE_SIZE,
+        help="Maximum file size in bytes"
+    )
+
     check_parser = subparsers.add_parser(
         "check",
         help="Check files against the integrity baseline"
@@ -376,6 +560,13 @@ def parse_arguments():
         help="Path to the baseline"
     )
 
+    check_parser.add_argument(
+        "--max-size",
+        type=int,
+        default=DEFAULT_MAX_FILE_SIZE,
+        help="Maximum file size in bytes"
+    )
+
     return parser.parse_args()
 
 
@@ -388,11 +579,18 @@ def main() -> None:
 
     try:
 
+        if args.max_size <= 0:
+
+            raise ValueError(
+                "Maximum file size must be greater than zero."
+            )
+
         if args.command == "baseline":
 
             create_baseline(
                 args.directory,
-                args.output
+                args.output,
+                args.max_size
             )
 
         elif args.command == "check":
@@ -400,16 +598,20 @@ def main() -> None:
             results = check_integrity(
                 args.directory,
                 args.baseline,
-                logger
+                logger,
+                args.max_size
             )
 
-            print_report(results)
+            print_report(
+                results
+            )
 
     except (
         FileNotFoundError,
         NotADirectoryError,
         PermissionError,
-        json.JSONDecodeError
+        ValueError,
+        OSError
     ) as error:
 
         print(
