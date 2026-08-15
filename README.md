@@ -7,6 +7,22 @@ unauthorized changes to monitored files using SHA-256 hashes.
 
 🚧 Under Development
 
+## Current Features
+
+- SHA-256 file hashing
+- Recursive file discovery
+- JSON baseline generation
+- File size tracking
+- Basic filesystem error handling
+
+## Current Status
+
+Version 0.2 — Baseline generation implemented.
+
+The project is currently under development. File modification,
+deletion, and new-file detection will be implemented in upcoming
+versions.
+
 ## Planned Features
 
 - File hashing
