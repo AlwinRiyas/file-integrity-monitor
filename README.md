@@ -18,7 +18,6 @@ File Integrity Monitoring (FIM) is a security technique used to detect
 unexpected changes to important files.
 
 ## Demo
-## Demo
 
 ### CLI Interface
 
