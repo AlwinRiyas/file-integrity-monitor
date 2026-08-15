@@ -7,3 +7,5 @@ venv/
 *.log
 .DS_Store
 data/baseline.json
+test-monitor/
+data/test-baseline.json

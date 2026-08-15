@@ -23,6 +23,13 @@ The project is currently under development. File modification,
 deletion, and new-file detection will be implemented in upcoming
 versions.
 
+## Usage
+
+### Create a baseline
+
+bash
+python3 -m src.fim baseline
+
 ## Planned Features
 
 - File hashing
