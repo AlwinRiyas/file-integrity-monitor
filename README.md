@@ -9,8 +9,6 @@ testing, input validation, and secure development practices.
 
 ## Project Status
 
-## Project Status
-
 **Version:** 1.0.0  
 **Status:** Stable portfolio release
 
@@ -19,24 +17,26 @@ testing, input validation, and secure development practices.
 File Integrity Monitoring (FIM) is a security technique used to detect
 unexpected changes to important files.
 
-A typical workflow is:
+## Demo
+## Demo
 
-```text
-Trusted State
-     |
-     v
-SHA-256 Baseline
-     |
-     v
-Filesystem Scan
-     |
-     v
-Hash Comparison
-     |
-     v
-Change Detection
-     |
-     v
-Security Event
+### CLI Interface
 
-- [x] Final portfolio release
+The tool provides separate commands for creating a trusted baseline
+and checking filesystem integrity.
+
+![FIM CLI Help](docs/images/cli-help.png)
+
+### Clean Integrity Check
+
+When the monitored filesystem matches the trusted baseline, the
+monitor reports no changes.
+
+![Clean Integrity Check](docs/images/clean-check.png)
+
+### Integrity Violation Detection
+
+When a monitored file is modified, the SHA-256 hash changes and the
+FIM identifies the file as modified.
+
+![Integrity Violation Detection](docs/images/integrity-detection.png)
