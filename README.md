@@ -1,44 +1,38 @@
 # File Integrity Monitor
 
-A Python-based cybersecurity tool that detects changes to monitored
-files using SHA-256 cryptographic hashes.
+A Python-based cybersecurity tool that detects filesystem changes
+using SHA-256 cryptographic hashes.
+
+The project is designed as a practical security engineering project
+covering file integrity monitoring, security logging, automated
+testing, input validation, and secure development practices.
 
 ## Project Status
 
-🚧 Under Development
+**Version:** 0.9  
+**Status:** Portfolio development
 
-Current version: 0.3
+## Why This Project?
 
-## Features
+File Integrity Monitoring (FIM) is a security technique used to detect
+unexpected changes to important files.
 
-- SHA-256 file hashing
-- Recursive file discovery
-- Integrity baseline generation
-- File modification detection
-- File deletion detection
-- New file detection
-- Command-line interface
-- Security event logging
-- Basic error handling
-
-## Technology
-
-- Python 3
-- SHA-256
-- JSON
-- Git
-- GitHub
-
-## Project Structure
+A typical workflow is:
 
 ```text
-file-integrity-monitor/
-├── data/
-├── docs/
-├── monitored/
-├── src/
-│   └── fim.py
-├── tests/
-├── .gitignore
-├── LICENSE
-└── README.md
+Trusted State
+     |
+     v
+SHA-256 Baseline
+     |
+     v
+Filesystem Scan
+     |
+     v
+Hash Comparison
+     |
+     v
+Change Detection
+     |
+     v
+Security Event
