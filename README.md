@@ -24,18 +24,18 @@ unexpected changes to important files.
 The tool provides separate commands for creating a trusted baseline
 and checking filesystem integrity.
 
-![FIM CLI Help](docs/images/cli-help.png)
+![FIM CLI Help](docs/images/cli-help.jpg)
 
 ### Clean Integrity Check
 
 When the monitored filesystem matches the trusted baseline, the
 monitor reports no changes.
 
-![Clean Integrity Check](docs/images/clean-check.png)
+![Clean Integrity Check](docs/images/clean-check.jpg)
 
 ### Integrity Violation Detection
 
 When a monitored file is modified, the SHA-256 hash changes and the
 FIM identifies the file as modified.
 
-![Integrity Violation Detection](docs/images/integrity-detection.png)
+![Integrity Violation Detection](docs/images/integrity-detection.jpg)
