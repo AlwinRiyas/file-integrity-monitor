@@ -1,41 +1,101 @@
-# File Integrity Monitor
+# VERITAS
 
-A Python-based cybersecurity tool that detects filesystem changes
-using SHA-256 cryptographic hashes.
+### Cryptographic File Integrity Monitoring System
 
-The project is designed as a practical security engineering project
-covering file integrity monitoring, security logging, automated
-testing, input validation, and secure development practices.
+> **Veritas** — Latin for *truth* — is a lightweight, security-focused File Integrity Monitoring (FIM) system that uses SHA-256 cryptographic hashing to establish a trusted filesystem baseline and detect unauthorized file changes.
 
-## Project Status
+![Python](https://img.shields.io/badge/Python-3.x-blue?logo=python)
+![Security](https://img.shields.io/badge/Domain-Cybersecurity-red)
+![Hashing](https://img.shields.io/badge/Hash-SHA--256-green)
+![Testing](https://img.shields.io/badge/Testing-Unittest-orange)
+![Status](https://img.shields.io/badge/Status-Stable-success)
 
-**Version:** 1.0.0  
-**Status:** Stable portfolio release
+---
 
-## Why This Project?
+## 📌 Overview
 
-File Integrity Monitoring (FIM) is a security technique used to detect
-unexpected changes to important files.
+File integrity is a fundamental security control used to detect unauthorized changes to important files.
 
-## Demo
+Attackers may modify configuration files, application files, scripts, security policies, or other sensitive resources after gaining access to a system.
 
-### CLI Interface
+**Veritas** addresses this problem by creating a trusted cryptographic baseline of a monitored directory and comparing future filesystem states against that baseline.
 
-The tool provides separate commands for creating a trusted baseline
-and checking filesystem integrity.
+It detects:
 
-![FIM CLI Help](docs/images/cli-help.jpg)
+- 🔴 Modified files
+- 🟡 Newly created files
+- ⚫ Deleted files
 
-### Clean Integrity Check
+Instead of relying only on timestamps or filenames, Veritas uses **SHA-256 cryptographic hashes** to represent file contents.
 
-When the monitored filesystem matches the trusted baseline, the
-monitor reports no changes.
+---
 
-![Clean Integrity Check](docs/images/clean-check.jpg)
+## 🎯 Objectives
 
-### Integrity Violation Detection
+The primary objectives of Veritas are to:
 
-When a monitored file is modified, the SHA-256 hash changes and the
-FIM identifies the file as modified.
+- Establish a trusted filesystem baseline
+- Detect unauthorized file modifications
+- Detect newly created files
+- Detect deleted files
+- Provide security-focused logging
+- Validate filesystem inputs
+- Protect against unsafe symbolic-link traversal
+- Control resource consumption during hashing
+- Provide automated tests for core security functionality
+- Demonstrate practical File Integrity Monitoring concepts
 
-![Integrity Violation Detection](docs/images/integrity-detection.jpg)
+---
+
+# ⚙️ How Veritas Works
+
+Veritas follows a simple but security-focused workflow:
+
+```text
+                    ┌─────────────────────┐
+                    │  Monitored Folder   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  File Discovery     │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Input Validation   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │    SHA-256 Hash     │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Trusted Baseline   │
+                    │       JSON          │
+                    └──────────┬──────────┘
+                               │
+                         Later Scan
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │   Current State     │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │ Baseline Comparison │
+                    └──────────┬──────────┘
+                               │
+               ┌───────────────┼───────────────┐
+               ▼               ▼               ▼
+          ┌──────────┐    ┌──────────┐    ┌──────────┐
+          │ MODIFIED │    │   NEW    │    │ DELETED  │
+          └──────────┘    └──────────┘    └──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Security Logging   │
+                    └─────────────────────┘
